@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Мой QR для кофе</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-color: #f6f2ec;
+      --accent-color: #6f4e37;
+      --text-color: #3b2e2a;
+      --button-color: #a9745b;
+      --button-hover: #8b5e45;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 1em;
+    }
+
+    h1 {
+      color: var(--accent-color);
+      margin-bottom: 1em;
+      text-align: center;
+    }
+
+    #qrcode {
+      padding: 10px;
+      background: white;
+      border: 4px solid var(--accent-color);
+      border-radius: 12px;
+      margin-bottom: 1em;
+    }
+
+    .btn {
+      background-color: var(--button-color);
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      background-color: var(--button-hover);
+    }
+  </style>
+</head>
+<body>
+  <h1>Покажите этот QR кассиру ☕</h1>
+  <div id="qrcode"></div>
+  <button class="btn" onclick="generateQRCode()">🔄 Обновить QR</button>
+
+  <!-- QR Code lib -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <script>
+    let qr;
+
+    function generateQRCode() {
+      const userId = Telegram.WebApp.initDataUnsafe?.user?.id;
+
+      if (!userId) {
+        document.getElementById("qrcode").innerText = "❌ Не удалось получить user_id";
+        return;
+      }
+
+      const payload = JSON.stringify({
+        type: "client",
+        uid: userId
+      });
+
+      document.getElementById("qrcode").innerHTML = "";
+      qr = new QRCode(document.getElementById("qrcode"), {
+        text: payload,
+        width: 250,
+        height: 250,
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    }
+
+    // генерируем QR при загрузке
+    window.addEventListener('DOMContentLoaded', generateQRCode);
+  </script>
+</body>
+</html>
