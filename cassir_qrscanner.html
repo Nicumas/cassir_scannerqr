@@ -2,9 +2,9 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
+  <title>Сканировать QR</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-  <title>Сканировать QR</title>
   <style>
     body {
       margin: 0; display: flex;
@@ -23,11 +23,9 @@
   <video id="video" autoplay playsinline></video>
   <div id="msg">📷 Наведите камеру на QR</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script>
     const video = document.getElementById('video');
     const msg = document.getElementById('msg');
-
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
 
