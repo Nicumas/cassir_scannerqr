@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Сканировать QR</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <style>
     html, body {
       margin: 0;
@@ -80,6 +78,8 @@
 <body>
   <div id="videoContainer">
     <button id="startButton">Запустить сканер</button>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <video id="video" autoplay muted playsinline class="hidden"></video>
     <div id="overlay" class="hidden">
       <div id="msg">📷 Наведите камеру на QR-код</div>
