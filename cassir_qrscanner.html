@@ -4,41 +4,32 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Сканировать QR</title>
-  
-  <!-- Исправленные ссылки -->
-  <script src="https://telegram.org/js/telegram-web-app.js "></script>
-  <script src="https://unpkg.com/html5-qrcode @2.3.7/html5-qrcode.min.js"></script>
-  
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <style>
-    /* Основные стили */
     html, body {
       margin: 0;
       padding: 0;
       width: 100%;
-      height: 100vh; /* Используем vh для корректного отображения */
+      height: 100%;
       background: #000;
       color: #fff;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
       overflow: hidden;
+      position: fixed;
     }
-
     #videoContainer {
       position: relative;
       width: 100%;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      height: 100%;
+      overflow: hidden;
     }
-
-    #scanner-container {
+    #video {
       width: 100%;
       height: 100%;
-      position: relative;
+      object-fit: cover;
+      transform: scaleX(-1); /* Зеркальное отображение для фронтальной камеры */
     }
-
-    /* Стили для элементов интерфейса */
     #overlay {
       position: absolute;
       top: 0;
@@ -49,12 +40,10 @@
       padding: 20px 0;
       background: rgba(0,0,0,0.7);
     }
-
     #msg {
       font-size: 1.2em;
       padding: 10px;
     }
-
     #startButton {
       position: absolute;
       top: 50%;
@@ -70,7 +59,6 @@
       z-index: 20;
       box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
-
     #error {
       position: absolute;
       bottom: 20px;
@@ -84,23 +72,15 @@
       padding: 10px;
       background: rgba(0,0,0,0.7);
     }
-
     .hidden {
-      display: none !important;
-    }
-    
-    /* Стили для видео элемента сканера */
-    .html5-qrcode-element {
-      width: 100%!important;
-      height: 100%!important;
-      object-fit: cover;
+      display: none;
     }
   </style>
 </head>
 <body>
   <div id="videoContainer">
     <button id="startButton">Запустить сканер</button>
-    <div id="scanner-container" class="hidden"></div>
+    <video id="video" autoplay muted playsinline class="hidden"></video>
     <div id="overlay" class="hidden">
       <div id="msg">📷 Наведите камеру на QR-код</div>
     </div>
@@ -108,167 +88,141 @@
   </div>
 
   <script>
-    // Инициализация элементов
-    const startButton = document.getElementById('startButton');
+    const video = document.getElementById('video');
     const msg = document.getElementById('msg');
+    const startButton = document.getElementById('startButton');
     const overlay = document.getElementById('overlay');
     const errorEl = document.getElementById('error');
-    const scannerContainer = document.getElementById('scanner-container');
-    
-    let html5QrCode = null;
-    let scanning = false;
+    let scanActive = false;
 
-    // Показ ошибки
+    // Проверка поддержки камеры
+    function checkCameraSupport() {
+      return !!(
+        navigator.mediaDevices && 
+        navigator.mediaDevices.getUserMedia &&
+        window.MediaStream
+      );
+    }
+
+    // Показать ошибку
     function showError(message) {
       errorEl.textContent = message;
       errorEl.style.display = 'block';
       console.error(message);
     }
 
-    // Остановка сканирования
-    function stopScanner() {
-      if (html5QrCode && scanning) {
-        html5QrCode.stop().then(() => {
-          scanning = false;
-          html5QrCode = null;
-          scannerContainer.innerHTML = '';
-        }).catch(err => {
-          console.error("Ошибка остановки сканера:", err);
-        });
+    // Запуск камеры
+    async function startCamera() {
+      if (!checkCameraSupport()) {
+        showError('Ваше устройство или браузер не поддерживает доступ к камере');
+        return;
       }
-    }
-
-    // Запуск сканера
-    async function startScanner() {
-      if (scanning) return;
       
       try {
-        startButton.classList.add('hidden');
-        scannerContainer.classList.remove('hidden');
-        overlay.classList.remove('hidden');
-        errorEl.style.display = 'none';
-        
-        html5QrCode = new Html5Qrcode("scanner-container");
-        
-        const config = {
-          fps: 10,
-          qrbox: 200
+        const constraints = {
+          video: { 
+            facingMode: "environment",
+            width: { min: 640, ideal: 1280 },
+            height: { min: 480, ideal: 720 }
+          }
         };
         
-        scanning = true;
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
         
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          config,
-          qrCodeMessage => {
-            handleScannedCode(qrCodeMessage);
-          },
-          () => {
-            msg.textContent = "🔍 Сканирую...";
-          }
-        );
+        video.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+        startButton.classList.add('hidden');
+        errorEl.style.display = 'none';
+        
+        video.onloadedmetadata = () => {
+          scanActive = true;
+          requestAnimationFrame(scanFrame);
+        };
         
       } catch (err) {
-        scanning = false;
-        startButton.classList.remove('hidden');
-        scannerContainer.classList.add('hidden');
-        overlay.classList.add('hidden');
-        
         let errorMessage = '🚫 Ошибка доступа к камере';
         
         if (err.name === 'NotAllowedError') {
-          errorMessage = '❌ Доступ к камере запрещён. Разрешите в настройках браузера';
+          errorMessage = '❌ Доступ к камере запрещен. Разрешите доступ в настройках браузера';
         } else if (err.name === 'NotFoundError') {
           errorMessage = '❌ Камера не найдена';
         } else if (err.name === 'OverconstrainedError') {
-          tryFrontCamera();
-          return;
-        } else if (err.message?.includes('video constraints')) {
-          errorMessage = '❌ Устройство не поддерживает настройки камеры';
-        } else {
-          errorMessage = '❌ Ошибка: ' + (err.message || err);
+          errorMessage = '❌ Требуемые параметры камеры не поддерживаются';
         }
         
         showError(errorMessage);
-        console.error("Ошибка камеры:", err);
-      }
-    }
-
-    // Попытка использовать фронтальную камеру
-    async function tryFrontCamera() {
-      try {
-        scannerContainer.innerHTML = '';
-        html5QrCode = new Html5Qrcode("scanner-container");
-        
-        const config = {
-          fps: 10,
-          qrbox: 200
-        };
-        
-        scanning = true;
-        
-        await html5QrCode.start(
-          { facingMode: "user" },
-          config,
-          qrCodeMessage => {
-            handleScannedCode(qrCodeMessage);
-          },
-          () => {
-            msg.textContent = "🔍 Сканирую...";
-          }
-        );
-        
-      } catch (err) {
-        scanning = false;
         startButton.classList.remove('hidden');
-        scannerContainer.classList.add('hidden');
-        overlay.classList.add('hidden');
-        showError('❌ Не удалось запустить ни одну камеру');
       }
     }
 
-    // Обработка QR-кода
-    function handleScannedCode(data) {
+    // Сканирование кадров
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    function scanFrame() {
+      if (!scanActive) return;
+      
       try {
-        const payload = JSON.parse(data);
-        if (payload.type === "client" && payload.uid) {
-          msg.textContent = `✅ Найден клиент: UID ${payload.uid}`;
+        if (video.readyState >= video.HAVE_METADATA) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
           
-          if (window.Telegram?.WebApp) {
-            Telegram.WebApp.sendData(JSON.stringify(payload));
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imgData.data, canvas.width, canvas.height);
+          
+          if (code) {
+            try {
+              const payload = JSON.parse(code.data);
+              if (payload.type === "client" && payload.uid) {
+                msg.textContent = `✅ Найден клиент: UID ${payload.uid}`;
+                scanActive = false;
+                
+                // Отправка данных в Telegram
+                if (window.Telegram && Telegram.WebApp) {
+                  Telegram.WebApp.sendData(JSON.stringify(payload));
+                }
+                return;
+              } else {
+                msg.textContent = '❌ Неверный QR-код';
+              }
+            } catch (e) {
+              msg.textContent = '❌ Ошибка чтения данных QR';
+            }
           }
-          
-          stopScanner();
-        } else {
-          msg.textContent = '❌ Неверный QR-код';
-          setTimeout(() => {
-            msg.textContent = '🔍 Сканирую...';
-          }, 2000);
         }
+        requestAnimationFrame(scanFrame);
       } catch (e) {
-        msg.textContent = '❌ Ошибка чтения данных QR';
-        setTimeout(() => {
-          msg.textContent = '🔍 Сканирую...';
-        }, 2000);
+        showError('Ошибка при сканировании: ' + e.message);
       }
     }
+
+    // Обработчики событий
+    startButton.addEventListener('click', startCamera);
 
     // Инициализация
     window.addEventListener('DOMContentLoaded', () => {
-      if (window.Telegram?.WebApp) {
+      // Для Telegram WebApp запускаем сразу
+      if (window.Telegram && Telegram.WebApp) {
         Telegram.WebApp.ready();
-        startScanner();
+        startCamera();
       } else {
         startButton.classList.remove('hidden');
       }
+      
+      // Проверка поддержки
+      if (!checkCameraSupport()) {
+        showError('Ваш браузер не поддерживает доступ к камере');
+        startButton.disabled = true;
+      }
     });
 
-    // Обработчики событий
-    startButton.addEventListener('click', startScanner);
-
-    // Очистка при закрытии
+    // Остановка камеры при закрытии
     window.addEventListener('beforeunload', () => {
-      stopScanner();
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+      }
     });
   </script>
 </body>
