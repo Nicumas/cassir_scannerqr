@@ -127,7 +127,7 @@
       }
     }
 
-    // Запуск сканера
+    // Запуск сканера с минимальными требованиями
     async function startScanner() {
       if (scanning) return;
       
@@ -140,16 +140,15 @@
         // Инициализация сканера
         html5QrCode = new Html5Qrcode("scanner-container");
         
-        // УПРОЩЕННАЯ КОНФИГУРАЦИЯ - УБРАН ASPECTRATIO
+        // УПРОЩЕННАЯ КОНФИГУРАЦИЯ БЕЗ ЛИШНИХ ПАРАМЕТРОВ
         const config = {
-          fps: 15,
-          qrbox: 250,
-          disableFlip: false
+          fps: 10,
+          qrbox: 200
         };
         
         scanning = true;
         
-        // Запуск сканирования с БОЛЕЕ ПРОСТЫМИ ПАРАМЕТРАМИ
+        // Запуск сканирования с МИНИМАЛЬНЫМИ ТРЕБОВАНИЯМИ
         await html5QrCode.start(
           { facingMode: "environment" },
           config,
@@ -175,7 +174,9 @@
         } else if (err.name === 'NotFoundError') {
           errorMessage = '❌ Камера не найдена';
         } else if (err.name === 'OverconstrainedError') {
-          errorMessage = '❌ Требуемые параметры камеры не поддерживаются. Попробуйте другое устройство';
+          // Пробуем запустить с фронтальной камерой как запасной вариант
+          tryFrontCamera();
+          return;
         } else if (err.message && err.message.includes('video constraints')) {
           errorMessage = '❌ Ваше устройство не поддерживает требуемые настройки камеры';
         } else {
@@ -184,6 +185,39 @@
         
         showError(errorMessage);
         console.error("Camera error details:", err);
+      }
+    }
+
+    // Попытка использовать фронтальную камеру
+    async function tryFrontCamera() {
+      try {
+        scannerContainer.innerHTML = ''; // Очищаем контейнер
+        html5QrCode = new Html5Qrcode("scanner-container");
+        
+        const config = {
+          fps: 10,
+          qrbox: 200
+        };
+        
+        scanning = true;
+        
+        await html5QrCode.start(
+          { facingMode: "user" }, // Фронтальная камера
+          config,
+          qrCodeMessage => {
+            handleScannedCode(qrCodeMessage);
+          },
+          () => {
+            msg.textContent = "🔍 Сканирую...";
+          }
+        );
+        
+      } catch (err) {
+        scanning = false;
+        startButton.classList.remove('hidden');
+        scannerContainer.classList.add('hidden');
+        overlay.classList.add('hidden');
+        showError('❌ Не удалось запустить ни одну камеру');
       }
     }
 
