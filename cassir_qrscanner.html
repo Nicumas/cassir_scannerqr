@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Сканировать QR</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- Исправленная ссылка на библиотеку сканирования -->
   <script src="https://unpkg.com/html5-qrcode@2.3.7/html5-qrcode.min.js"></script>
   <style>
     html, body {
@@ -120,6 +119,8 @@
       if (html5QrCode && scanning) {
         html5QrCode.stop().then(() => {
           scanning = false;
+          html5QrCode = null;
+          scannerContainer.innerHTML = ''; // Очищаем контейнер
         }).catch(err => {
           console.error("Ошибка остановки сканера:", err);
         });
@@ -139,17 +140,16 @@
         // Инициализация сканера
         html5QrCode = new Html5Qrcode("scanner-container");
         
-        // Конфигурация камеры
+        // УПРОЩЕННАЯ КОНФИГУРАЦИЯ - УБРАН ASPECTRATIO
         const config = {
           fps: 15,
           qrbox: 250,
-          aspectRatio: 1.777778,
           disableFlip: false
         };
         
         scanning = true;
         
-        // Запуск сканирования
+        // Запуск сканирования с БОЛЕЕ ПРОСТЫМИ ПАРАМЕТРАМИ
         await html5QrCode.start(
           { facingMode: "environment" },
           config,
@@ -157,11 +157,10 @@
             handleScannedCode(qrCodeMessage);
           },
           () => {
-            // Функция для отображения состояния сканирования
             msg.textContent = "🔍 Сканирую...";
           }
         ).catch(err => {
-          throw err; // Перебрасываем ошибку для обработки ниже
+          throw err;
         });
         
       } catch (err) {
@@ -176,13 +175,15 @@
         } else if (err.name === 'NotFoundError') {
           errorMessage = '❌ Камера не найдена';
         } else if (err.name === 'OverconstrainedError') {
-          errorMessage = '❌ Требуемые параметры камеры не поддерживаются';
-        } else if (err.message) {
-          errorMessage = '❌ Ошибка: ' + err.message;
+          errorMessage = '❌ Требуемые параметры камеры не поддерживаются. Попробуйте другое устройство';
+        } else if (err.message && err.message.includes('video constraints')) {
+          errorMessage = '❌ Ваше устройство не поддерживает требуемые настройки камеры';
+        } else {
+          errorMessage = '❌ Ошибка: ' + (err.message || err);
         }
         
         showError(errorMessage);
-        console.error(err);
+        console.error("Camera error details:", err);
       }
     }
 
@@ -202,7 +203,6 @@
           stopScanner();
         } else {
           msg.textContent = '❌ Неверный QR-код';
-          // Продолжаем сканирование через 2 секунды
           setTimeout(() => {
             msg.textContent = '🔍 Сканирую...';
           }, 2000);
